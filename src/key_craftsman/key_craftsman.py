@@ -224,7 +224,7 @@ class KeyCraftsman:
             - This method employs the `translate` method to efficiently filter characters.
             - To exclude additional characters, provide them as a string in the `exclude_chars` parameter.
         """
-        return "".join(s).translate(str.maketrans("", "", exclude_chars))
+        return "".join(s).translate(str.maketrans("", "", whitespace + exclude_chars))
 
     @classmethod
     def _whitespace_checker(cls, key) -> None:
@@ -584,7 +584,7 @@ def generate_fernet_keys(
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.1"),
+    "version": (__version__ := "1.0.2"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
