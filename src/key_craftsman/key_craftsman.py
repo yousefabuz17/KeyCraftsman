@@ -394,7 +394,9 @@ class KeyCraftsman:
         )
 
         # Excludes the specified separator character to prevent interference with special characters.
-        filtered_text = self._filter_chars(text, exclude_chars=self._sep)
+        filtered_sep = self._filter_chars(self._sep)
+        filtered_header = self._filter_chars(self._key_header)
+        filtered_text = self._filter_chars(text, exclude_chars=filtered_sep)
         len_text = len(filtered_text)
 
         if len_text != 1 and self._width >= len_text:
@@ -403,10 +405,10 @@ class KeyCraftsman:
                 "\nThis ensures that the separator is not automatically excluded, preventing unintended behavior."
             )
 
-        sep_key = self._sep.join(
+        sep_key = filtered_sep.join(
             textwrap.wrap(
                 text=filtered_text,
-                initial_indent=self._key_header,
+                initial_indent=filtered_header,
                 width=self._width,
             )
         )
@@ -584,7 +586,7 @@ def generate_fernet_keys(
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.2"),
+    "version": (__version__ := "1.0.3"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
