@@ -3,7 +3,12 @@ import sys
 from pathlib import Path
 
 sys.path.append((Path(__file__).resolve().parents[1] / "src/key_craftsman").as_posix())
-from key_craftsman import excluder_chart, generate_fernet_keys, KeyCraftsman, KeyException
+from key_craftsman import (
+    excluder_chart,
+    generate_fernet_keys,
+    KeyCraftsman,
+    KeyException,
+)
 
 
 @pytest.fixture(params=[excluder_chart()])
@@ -39,6 +44,7 @@ def test_exclude_chars_param(test_excluder_chart_method):
 @pytest.fixture(params=[generate_fernet_keys])
 def test_generate_fernet_keys_method(request):
     return request.param
+
 
 def test_generate_fernet_keys(test_generate_fernet_keys_method):
     fernet_func = test_generate_fernet_keys_method

@@ -48,7 +48,7 @@ class KeyCraftsman:
         - `URL-Safe Encoding`: Utilize URL-safe base64 encoding for generated keys.
         - `Export Key(s)`: Export the generated key(s) to a file with optional formatting.
             - File will be created in the current working directory.
-        - `Custom Text Wrapping`: Wrap the generated key with custom indentation and separators.
+        - `Custom Text Wrapping`: Wrap the generated key with an initial header and custom separators.
         - `Multiple Key Generation`: Generate multiple keys with a single instance.
         - `Custom Key File Name`: Specify a custom name for the exported key file.
         - `Overwrite Key File`: Overwrite the key file if it already exists.
@@ -482,9 +482,7 @@ class KeyCraftsman:
 
     @cache
     def _get_file(self, default_name: str = "generated_key", ext: str = "bin") -> Path:
-        fp_name = (
-            self._obj_instance(self._kfile_name, obj_type=str) or default_name
-        )
+        fp_name = self._obj_instance(self._kfile_name, obj_type=str) or default_name
         ext = "." + ext
         file = (Path.cwd() / fp_name).with_suffix(ext)
         if not self._overwrite and all((file.is_file(), file.is_absolute())):
@@ -552,7 +550,7 @@ def generate_fernet_keys(
     include_all_chars: bool = False,
     keyfile_name: str = "",
     overwrite_keyfile: bool = False,
-) -> bytes:
+) -> Union[bytes, dict[str, bytes]]:
     """
     Generate secure cryptographic key(s) using the `KeyCraftsman` class with customizable parameters.
 
@@ -578,14 +576,15 @@ def generate_fernet_keys(
         keyfile_name=keyfile_name,
         overwrite_keyfile=overwrite_keyfile,
     )
+    get_method = lambda k, m: getattr(k, m+"s" if num_of_keys else m)
     if any((keyfile_name, overwrite_keyfile)):
-        secure_key.export_key()
-    return getattr(secure_key, "keys" if num_of_keys else "key")
+        get_method(secure_key, "export_key")
+    return get_method(secure_key, "key")
 
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.0"),
+    "version": (__version__ := "1.0.1"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
