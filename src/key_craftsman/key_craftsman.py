@@ -388,9 +388,15 @@ class KeyCraftsman:
                 )
             )
         self._obj_instance(self._sep)
+        if (sep_length:=len(self._sep)) != 1:
+            raise KeyException(
+                "Invalid Separator Length: The separator must have a fixed length of 1. "
+                "This constraint is essential to prevent interference with separator placement when a width is specified."
+                f"\n>>> ({sep_length = !r}) != 1"
+            )
         self._obj_instance(self._key_header)
-        self._width = (
-            1 if not self._width else self._obj_instance(self._width, obj_type=int)
+        width = (
+            4 if not self._width else self._obj_instance(self._width, obj_type=int)
         )
 
         # Excludes the specified separator character to prevent interference with special characters.
@@ -399,7 +405,7 @@ class KeyCraftsman:
         filtered_text = self._filter_chars(text, exclude_chars=filtered_sep)
         len_text = len(filtered_text)
 
-        if len_text != 1 and self._width >= len_text:
+        if len_text != 1 and width >= len_text:
             raise KeyException(
                 f"The provided 'width' value must be 1 less than the specified key length."
                 "\nThis ensures that the separator is not automatically excluded, preventing unintended behavior."
@@ -409,7 +415,7 @@ class KeyCraftsman:
             textwrap.wrap(
                 text=filtered_text,
                 initial_indent=filtered_header,
-                width=self._width,
+                width=width,
             )
         )
         return sep_key
@@ -586,7 +592,7 @@ def generate_fernet_keys(
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.3"),
+    "version": (__version__ := "1.0.4"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
@@ -597,7 +603,7 @@ METADATA = {
     "doc": (__doc__ := KeyCraftsman.__doc__),
 }
 
-
+print(KeyCraftsman(sep="-d", key_header="KEY").keys)
 __all__ = (
     "METADATA",
     "KeyCraftsman",
