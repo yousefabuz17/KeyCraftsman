@@ -1,16 +1,19 @@
 import base64
 import json
+import math
+import operator
 import re
 import sys
 import textwrap
+from collections import namedtuple
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from itertools import cycle, islice
 from functools import cache, cached_property, partial
 from pathlib import Path
 from secrets import SystemRandom
 from string import (
-    ascii_lowercase,
     ascii_letters,
+    ascii_lowercase,
     ascii_uppercase,
     digits,
     hexdigits,
@@ -18,10 +21,15 @@ from string import (
     punctuation,
     whitespace,
 )
-from typing import Any, Iterable, Union
+from typing import Any, Iterable, NamedTuple, Union
 
 
 class KeyException(BaseException):
+    """
+    A custom exception class derived from `BaseException` for managing errors associated with generating or exporting key(s).
+    This exception should be raised when encountering issues in the process of generating or exporting keys within the application.
+    """
+
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
 
@@ -38,19 +46,48 @@ class KeyCraftsman:
         - `Exclude Characters`: Exclude specific characters from the generated keys.
         - `Include All Characters`: Include all ASCII letters, digits, and punctuation in the generated keys.
         - `URL-Safe Encoding`: Utilize URL-safe base64 encoding for generated keys.
-            - `Fernet Compatibility`: URL-safe encoding with a length of 32 works seamlessly for Fernet encryption.
-    
+        - `Export Key(s)`: Export the generated key(s) to a file with optional formatting.
+            - File will be created in the current working directory.
+        - `Custom Text Wrapping`: Wrap the generated key with custom indentation and separators.
+        - `Multiple Key Generation`: Generate multiple keys with a single instance.
+        - `Custom Key File Name`: Specify a custom name for the exported key file.
+        - `Overwrite Key File`: Overwrite the key file if it already exists.
+
     #### Parameters:
         - `key_length` (int): The length of the generated key. Defaults to 32.
+            - The key length must be a positive integer.
+            - The maximum capacity is determined by the system's maximum integer size.
         - `exclude_chars` (str): Characters to exclude from the generated key.
+            - If not specified, no characters will be excluded.
+            - Use the `return_chart` parameter from `char_excluder()` to view all possible exclude types.
+            - Whitespace characters are automatically excluded from the charset.
+            - Examples:
+                - `exclude_chars="punct"` will exclude punctuation characters from the generated key.
+                - `exclude_chars="octo_ascii_upper_punct"` will exclude octal digits, uppercase ASCII letters, and punctuation characters.
         - `include_all_chars` (bool): Whether to include all characters (ASCII letters, digits, and punctuation).
         - `urlsafe_encoding` (bool): Whether to use URL-safe base64 encoding. Defaults to False.
+            - If True, the generated key will be encoded using URL-safe base64 encoding.
+            - `Fernet Compatibility`:
+                - URL-safe encoding with a length of 32 works seamlessly for Fernet encryption.
+                - URL-safe encoding is recommended for Fernet encryption with a key length of 32.
         - `num_of_keys` (int): Number of keys to generate when using `export_keys()`.
-        - `initial_key_header` (str): Initial indentation for each line when using separators.
+            - If not specified, the default number of keys is 2.
+            - The maximum number of keys is determined by the system's maximum integer size.
+        - `key_header` (str): Initial header for the generated key.
         - `sep` (str): The specified separator for text wrapping.
+            - If not specified, the key will not be wrapped with a separator.
+            - It is recommended to use one character of any standard characters for the separator (e.g., ascii_letters, digits).
         - `sep_width` (int): Width for text wrapping when using separators.
+            - If not specified, the default width is 1 less than the specified key length.
+            - The width must be 1 less than the key length to prevent the separator from being excluded.
+            - The separator will be excluded if the width is equal to or greater than the key length.
+            - The width is only applicable when using separators.
         - `keyfile_name` (str): Name of the file when exporting key(s).
-        - `export_key` (bool): Whether to export the generated key to a file. Defaults to False.
+            - If not specified, a default file name will be used.
+            - The default file name is 'generated_key' for single keys and 'generated_keys' for multiple keys.
+        - `overwrite_keyfile` (bool): Whether to overwrite the key file if it already exists.
+            - If False, a unique file name will be generated to avoid overwriting the existing file.
+            - If True, the existing file will be overwritten with the new key(s).
 
     #### Raises:
         - `NotImplementedError`: When combining URL-safe encoding with custom text wrapping separators.
@@ -70,8 +107,19 @@ class KeyCraftsman:
 
     #### Example:
         ```python
-        key_gen = KeyCraftsman(key_length=16, num_of_keys=5, include_all_chars=True, urlsafe_encoding=True)
-        keys = key_gen.export_keys()
+        key_gen = KeyCraftsman(key_length=32, num_of_keys=2, include_all_chars=False, urlsafe_encoding=True)
+
+        key = key_gen.key # Retrieve a single generated key.
+        # Output: b'...'
+
+        keys = key_gen.keys # Retrieve a dictionary of multiple generated keys.
+        # Output: {'key-1': b'...', 'key-2': b'...'}
+
+        key_gen.export_key() # Export the generated key to a file.
+        # Output: 'generated_key.bin has successfully been exported.'
+
+        key_gen.export_keys() # Export multiple generated keys to a JSON file.
+        # Output: 'generated_keys.json has successfully been exported.'
         ```
     """
 
@@ -87,26 +135,26 @@ class KeyCraftsman:
         include_all_chars: bool = False,
         urlsafe_encoding: bool = False,
         num_of_keys: int = None,
-        initial_key_header: str = "",
+        key_header: str = "",
         sep: str = "",
         sep_width: int = None,
         keyfile_name: str = "",
-        export_key: bool = False,
+        overwrite_keyfile: bool = False,
     ) -> None:
         self._key_length = key_length
         self._exclude_chars = exclude_chars
         self._include_all = include_all_chars
         self._urlsafe = urlsafe_encoding
         self._num_of_keys = num_of_keys
-        self._initial_indent = initial_key_header
+        self._key_header = key_header
         self._sep = sep
         self._width = sep_width
-        self._export_key = export_key
         self._kfile_name = keyfile_name
+        self._overwrite = overwrite_keyfile
         self._key = None
         self._keys = None
 
-        if all((self._urlsafe, any((self._sep, self._width)))):
+        if all((self._urlsafe, any((self._sep, self._width, self._key_header)))):
             raise NotImplementedError(
                 f"\nCombining URL-safe encoding with custom text wrapping separators is not supported in this version (v{__version__}). "
                 "\nPlease choose either URL-safe encoding or custom separators, but not both."
@@ -163,24 +211,24 @@ class KeyCraftsman:
     @staticmethod
     def _filter_chars(s: str, *, exclude_chars: str = "") -> str:
         """
-        ### Filter characters in the given string, excluding those specified.
+        Filter characters in the given string, excluding those specified.
 
         #### Parameters:
             - `s` (str): The input string to be filtered.
-            - `exclude_chars` (str): Characters to be exclude_charsd from the filtering process.
+            - `exclude_chars` (str): Characters to be excluded from the filtering process.
 
         #### Returns:
-            - str: The filtered string with specified characters exclude_charsd.
+            - `str`: The filtered string with specified characters exclude_charsd.
 
         #### Notes:
             - This method employs the `translate` method to efficiently filter characters.
-            - To exclude_chars additional characters, provide them as a string in the `exclude_chars` parameter.
+            - To exclude additional characters, provide them as a string in the `exclude_chars` parameter.
         """
         return "".join(s).translate(str.maketrans("", "", exclude_chars))
 
     @classmethod
-    def _whitespace_checker(cls, key):
-        if cls._compiler(key, (whitespace, "whitespace")):
+    def _whitespace_checker(cls, key) -> None:
+        if key == "whitespace" or cls._compiler(key, whitespace):
             print(
                 KeyException(
                     f"{whitespace = !r} is already excluded from the charset.\n"
@@ -188,50 +236,50 @@ class KeyCraftsman:
             )
 
     @classmethod
-    def _char_exclude_charsr(
+    def char_excluder(
         cls, key: str = "punct", return_chart: bool = False
     ) -> Union[dict[str, str], str, None]:
         """
-        ### exclude_chars specific character sets based on the provided key.
+        Exclude specific character sets based on the provided key.
 
         #### Parameters:
-        - key (str): The key to select the character set to exclude_chars.
-        - return_chart (bool): If True, returns the dicitonary containing all possible exluce types.
+            - key (str): The key to select the character set to exclude_chars.
+            - return_chart (bool): If True, returns the dicitonary containing all possible exluce types.
 
         #### Returns:
-        - str: The selected character set based on the key to be exclude_charsd from the generated passkey.
+            - str: The selected character set based on the key to be excluded from the generated passkey.
 
         #### Possible values for key:
-        - 'punct': exclude_charss punctuation characters.
-        - 'ascii': exclude_charss ASCII letters (both uppercase and lowercase).
-        - 'ascii_lower': exclude_charss lowercase ASCII letters.
-        - 'ascii_upper': exclude_charss uppercase ASCII letters.
-        - 'ascii_punct': exclude_charss both ASCII letters and punctuation characters.
-        - 'ascii_lower_punct': exclude_charss both lowercase ASCII letters and punctuation characters.
-        - 'ascii_upper_punct': exclude_charss both uppercase ASCII letters and punctuation characters.
-        - 'digits': exclude_charss digits (0-9).
-        - 'digits_ascii': exclude_charss both digits and ASCII letters.
-        - 'digits_punct': exclude_charss both digits and punctuation characters.
-        - 'digits_ascii_lower': exclude_charss both digits and lowercase ASCII letters.
-        - 'digits_ascii_upper': exclude_charss both digits and uppercase ASCII letters.
-        - 'digits_ascii_lower_punct': exclude_charss digits, lowercase ASCII letters, and punctuation characters.
-        - 'digits_ascii_upper_punct': exclude_charss digits, uppercase ASCII letters, and punctuation characters.
-        - 'hexdigits': exclude_charss hexadecimal digits (0-9, a-f, A-F).
-        - 'hex_punct': exclude_charss hexadecimal digits and punctuation characters.
-        - 'hex_ascii': exclude_charss hexadecimal digits and ASCII letters.
-        - 'hex_ascii_lower': exclude_charss hexadecimal digits and lowercase ASCII letters.
-        - 'hex_ascii_upper': exclude_charss hexadecimal digits and uppercase ASCII letters.
-        - 'hex_ascii_punct': exclude_charss hexadecimal digits, ASCII letters, and punctuation characters.
-        - 'hex_ascii_lower_punct': exclude_charss hexadecimal digits, lowercase ASCII letters, and punctuation characters.
-        - 'hex_ascii_upper_punct': exclude_charss hexadecimal digits, uppercase ASCII letters, and punctuation characters.
-        - 'octodigits': exclude_charss octal digits (0-7).
-        - 'octo_punct': exclude_charss octal digits and punctuation characters.
-        - 'octo_ascii': exclude_charss octal digits and ASCII letters.
-        - 'octo_ascii_lower': exclude_charss octal digits and lowercase ASCII letters.
-        - 'octo_ascii_upper': exclude_charss octal digits and uppercase ASCII letters.
-        - 'octo_ascii_punct': exclude_charss octal digits, ASCII letters, and punctuation characters.
-        - 'octo_ascii_lower_punct': exclude_charss octal digits, lowercase ASCII letters, and punctuation characters.
-        - 'octo_ascii_upper_punct': exclude_charss octal digits, uppercase ASCII letters, and punctuation characters.
+            - 'punct': exclude_charss punctuation characters.
+            - 'ascii': exclude_charss ASCII letters (both uppercase and lowercase).
+            - 'ascii_lower': exclude_charss lowercase ASCII letters.
+            - 'ascii_upper': exclude_charss uppercase ASCII letters.
+            - 'ascii_punct': exclude_charss both ASCII letters and punctuation characters.
+            - 'ascii_lower_punct': exclude_charss both lowercase ASCII letters and punctuation characters.
+            - 'ascii_upper_punct': exclude_charss both uppercase ASCII letters and punctuation characters.
+            - 'digits': exclude_charss digits (0-9).
+            - 'digits_ascii': exclude_charss both digits and ASCII letters.
+            - 'digits_punct': exclude_charss both digits and punctuation characters.
+            - 'digits_ascii_lower': exclude_charss both digits and lowercase ASCII letters.
+            - 'digits_ascii_upper': exclude_charss both digits and uppercase ASCII letters.
+            - 'digits_ascii_lower_punct': exclude_charss digits, lowercase ASCII letters, and punctuation characters.
+            - 'digits_ascii_upper_punct': exclude_charss digits, uppercase ASCII letters, and punctuation characters.
+            - 'hexdigits': exclude_charss hexadecimal digits (0-9, a-f, A-F).
+            - 'hex_punct': exclude_charss hexadecimal digits and punctuation characters.
+            - 'hex_ascii': exclude_charss hexadecimal digits and ASCII letters.
+            - 'hex_ascii_lower': exclude_charss hexadecimal digits and lowercase ASCII letters.
+            - 'hex_ascii_upper': exclude_charss hexadecimal digits and uppercase ASCII letters.
+            - 'hex_ascii_punct': exclude_charss hexadecimal digits, ASCII letters, and punctuation characters.
+            - 'hex_ascii_lower_punct': exclude_charss hexadecimal digits, lowercase ASCII letters, and punctuation characters.
+            - 'hex_ascii_upper_punct': exclude_charss hexadecimal digits, uppercase ASCII letters, and punctuation characters.
+            - 'octodigits': exclude_charss octal digits (0-7).
+            - 'octo_punct': exclude_charss octal digits and punctuation characters.
+            - 'octo_ascii': exclude_charss octal digits and ASCII letters.
+            - 'octo_ascii_lower': exclude_charss octal digits and lowercase ASCII letters.
+            - 'octo_ascii_upper': exclude_charss octal digits and uppercase ASCII letters.
+            - 'octo_ascii_punct': exclude_charss octal digits, ASCII letters, and punctuation characters.
+            - 'octo_ascii_lower_punct': exclude_charss octal digits, lowercase ASCII letters, and punctuation characters.
+            - 'octo_ascii_upper_punct': exclude_charss octal digits, uppercase ASCII letters, and punctuation characters.
 
         """
         cls._obj_instance(key, obj_type=str)
@@ -268,22 +316,44 @@ class KeyCraftsman:
             "oct_ascii_lower_punct": octdigits + ascii_lowercase + punctuation,
             "oct_ascii_upper_punct": octdigits + ascii_uppercase + punctuation,
         }
-        reverse_chars = {v: v for v in all_chars.values()}
         if return_chart:
             return all_chars
-        return all_chars.get(key) or reverse_chars.get(key)
+        return all_chars.get(key)
+
+    @classmethod
+    def _sig_larger(cls, *args) -> NamedTuple:
+        """
+        Calculate the significant difference between two numerical values.
+
+        - Special Note:
+            - The 'status' field indicates whether the absolute difference between the provided values
+            is within the threshold (1e6). If 'status' is False, the 'threshold' field will be the maximum
+            of the provided values and the threshold.
+        """
+
+        if len(args) == 2:
+            threshold = cls._MIN_CAPACITY
+            Sig = namedtuple("SigLarger", ("status", "threshold"))
+            abs_diff = abs(operator.sub(*args))
+            status: bool = operator.le(*map(math.log1p, (abs_diff, threshold)))
+            return Sig(status, max(max(args), threshold))
+        raise KeyException(
+            f"Excessive arguments provided; requires precisely two numerical values, such as {int} or {float}."
+        )
 
     def _check_scale(self, length) -> int:
         if length >= self._MIN_CAPACITY:
             return self._MAX_CAPACITY - 1
+        elif self._sig_larger(length, self._MIN_CAPACITY).status:
+            return length
         return self._MIN_CAPACITY
 
     @classmethod
-    def _length_checker(cls, length):
+    def _length_checker(cls, length) -> int:
         if any((not length, not isinstance(length, int))):
             raise KeyException("The key length must be a positive integer.")
 
-        if length >= (max_length := cls._MAX_CAPACITY):
+        elif length >= (max_length := cls._MAX_CAPACITY):
             raise KeyException(
                 f"Key length exceeds the maximum allowed capacity of {max_length = !r} characters. "
                 f"Received key with {length = !r}."
@@ -291,7 +361,7 @@ class KeyCraftsman:
         return length
 
     @staticmethod
-    def _obj_instance(obj: Any, obj_type: Any = str):
+    def _obj_instance(obj: Any, obj_type: Any = str) -> Any:
         if not isinstance(obj, obj_type):
             raise KeyException(
                 f"The provided value must be of type {obj_type}."
@@ -299,22 +369,13 @@ class KeyCraftsman:
             )
         return obj
 
-    def _wrap_text(self, text: str):
+    def _wrap_text(self, text: str) -> str:
         """
         Wrap text with a specified separator is not implemented in this program.
 
         This program currently does not support the usage of special characters as separators
         when wrapping text. If you require custom separators, please refrain from using
         special characters, and consider using standard characters with separators.
-
-        Parameters:
-            - text (str): The input text to be wrapped.
-            - initial_key_header (str): The initial indentation for each line.
-            - sep (str): The specified separator (unsupported if containing special characters).
-            - sep_width (int): The desired sep_width for text wrapping.
-
-        Raises:
-            KeyException: Raised when attempting to use special characters with custom separators.
         """
         if self._compiler(text, punctuation):
             print(
@@ -327,7 +388,7 @@ class KeyCraftsman:
                 )
             )
         self._obj_instance(self._sep)
-        self._obj_instance(self._initial_indent)
+        self._obj_instance(self._key_header)
         self._width = (
             1 if not self._width else self._obj_instance(self._width, obj_type=int)
         )
@@ -345,21 +406,28 @@ class KeyCraftsman:
         sep_key = self._sep.join(
             textwrap.wrap(
                 text=filtered_text,
-                initial_indent=self._initial_indent,
+                initial_indent=self._key_header,
                 width=self._width,
             )
         )
         return sep_key
 
-    @classmethod
-    def _generate_keys(cls, num_of_keys: int = 2, **kwargs):
-        num_keys = 2 if not num_of_keys else cls._length_checker(num_of_keys)
+    def _generate_keys(self) -> Iterable[str]:
+        num_keys = (
+            2 if not self._num_of_keys else self._length_checker(self._num_of_keys)
+        )
 
         def key_generator():
-            return KeyCraftsman(**kwargs).key
+            return KeyCraftsman(
+                num_of_keys=num_keys,
+                key_length=self._key_length,
+                exclude_chars=self._exclude_chars,
+                include_all_chars=self._include_all,
+                urlsafe_encoding=self._urlsafe,
+            ).key
 
         keys_gen = (
-            cls._EXECUTOR().submit(key_generator) for _ in range(1, num_keys + 1)
+            self._EXECUTOR().submit(key_generator) for _ in range(1, num_keys + 1)
         )
         keys = (k.result() for k in as_completed(keys_gen))
         return keys
@@ -376,11 +444,11 @@ class KeyCraftsman:
         if self._exclude_chars:
             self._obj_instance(self._exclude_chars, obj_type=str)
             filter_char = partial(self._filter_chars, all_chars)
-            exclude_chars_type = self._char_exclude_charsr(self._exclude_chars)
+            exclude_chars_type = self.char_excluder(self._exclude_chars)
             filtered_chars = (
-                filter_char(exclude_chars=self._exclude_chars)
-                if not exclude_chars_type
-                else filter_char(exclude_chars=exclude_chars_type)
+                filter_char(exclude_chars=exclude_chars_type)
+                if exclude_chars_type
+                else filter_char(exclude_chars=self._exclude_chars)
             )
 
         key_sample = SystemRandom().sample(
@@ -393,24 +461,18 @@ class KeyCraftsman:
         return generated_key
 
     @cached_property
-    def key(self):
+    def key(self) -> Union[bytes, str]:
         if self._key is None:
             self._key = self._generate_key()
-            if any((self._sep, self._initial_indent)):
+            if any((self._sep, self._key_header)):
                 self._key = self._wrap_text(text=self._key)
         return self._key
 
     @cached_property
-    def keys(self):
+    def keys(self) -> dict[str, bytes]:
         if self._keys is None:
-            self._keys = self._generate_keys(
-                num_of_keys=self._num_of_keys,
-                key_length=self._key_length,
-                exclude_chars=self._exclude_chars,
-                include_all_chars=self._include_all,
-                urlsafe_encoding=self._urlsafe,
-            )
-            if any((self._sep, self._initial_indent)):
+            self._keys = self._generate_keys()
+            if any((self._sep, self._key_header)):
                 self._keys = map(self._wrap_text, self._keys)
 
             self._keys = {
@@ -419,28 +481,29 @@ class KeyCraftsman:
         return self._keys
 
     @cache
-    def _get_file(self, default_name: str = "generated_key", ext: str = "bin"):
-        cwd = Path(__file__).parent
+    def _get_file(self, default_name: str = "generated_key", ext: str = "bin") -> Path:
+        fp_name = (
+            self._obj_instance(self._kfile_name, obj_type=str) or default_name
+        )
         ext = "." + ext
-        fp_name = self._kfile_name or default_name
-        default_fp = (cwd / fp_name).with_suffix(ext)
-        if all((default_fp.is_file(), default_fp.is_absolute())):
+        file = (Path.cwd() / fp_name).with_suffix(ext)
+        if not self._overwrite and all((file.is_file(), file.is_absolute())):
             id_trail = "ID" + str(id(0))[:5]
-            default_fp = default_fp.with_name(f"{fp_name}_{id_trail}")
-        return default_fp.with_suffix(ext)
+            file = file.with_name(f"{fp_name}_{id_trail}").with_suffix(ext)
+        return file
 
-    def _export_message(self, fp):
+    def _export_message(self, fp) -> None:
         print(
             f"\033[34m{fp.resolve().as_posix()!r}\033[0m has successfully been exported."
         )
 
-    def export_key(self):
+    def export_key(self) -> None:
         fp = self._get_file()
         with open(fp, mode="w", encoding="utf-8") as key_file:
             key_file.write(self.key)
         self._export_message(fp)
 
-    def export_keys(self):
+    def export_keys(self) -> None:
         fp = self._get_file(default_name="generated_keys", ext="json")
         keys = self.keys
 
@@ -471,6 +534,55 @@ class KeyCraftsman:
             self._export_message(fp)
 
 
+def excluder_chart() -> Union[dict[str, str], str, None]:
+    """
+    This function returns a dictionary containing all possible exclude types for the `exlude_chars` parameter.
+
+    - The keys in the dictionary represent the possible exclude types.
+    - The values in the dictionary represent the character sets to be excluded from the generated key.
+    - The character sets are based on the ASCII letters, digits, and punctuation characters.
+    - Whitespace characters ((space)\\t\\n\\r\\v\\f) are automatically excluded from the charset.
+    """
+    return KeyCraftsman.char_excluder(return_chart=True)
+
+
+def generate_fernet_keys(
+    num_of_keys: int = None,
+    exclude_chars: str = "",
+    include_all_chars: bool = False,
+    keyfile_name: str = "",
+    overwrite_keyfile: bool = False,
+) -> bytes:
+    """
+    Generate secure cryptographic key(s) using the `KeyCraftsman` class with customizable parameters.
+
+    #### Parameters:
+        - `key_header` (str): Initial indentation for each line in the key. Defaults to an empty string.
+        - `include_all_chars` (bool): Include all ASCII letters, digits, and punctuation in the key. Defaults to False.
+        - `keyfile_name` (str): Name of the file when exporting the key. Defaults to an empty string.
+        - `overwrite_keyfile` (bool): If True, overwrite the key file if it already exists. Defaults to False.
+
+    #### Returns:
+        - `bytes`: The generated cryptographic key.
+
+    #### Raises:
+        - `KeyException`: If an error occurs during key generation or export.
+    """
+    # XXX `key_length` and `urlsafe_encoding` are hardcoded to ensure compatibility with Fernet encryption.
+    secure_key = KeyCraftsman(
+        key_length=32,
+        urlsafe_encoding=True,
+        num_of_keys=num_of_keys,
+        exclude_chars=exclude_chars,
+        include_all_chars=include_all_chars,
+        keyfile_name=keyfile_name,
+        overwrite_keyfile=overwrite_keyfile,
+    )
+    if any((keyfile_name, overwrite_keyfile)):
+        secure_key.export_key()
+    return getattr(secure_key, "keys" if num_of_keys else "key")
+
+
 # XXX Metadata Information
 METADATA = {
     "version": (__version__ := "1.0.0"),
@@ -481,7 +593,7 @@ METADATA = {
     "summary": (
         __summary__ := "A Python class for generating secure and customizable keys."
     ),
-    "doc": __doc__,
+    "doc": (__doc__ := KeyCraftsman.__doc__),
 }
 
 
@@ -489,4 +601,6 @@ __all__ = (
     "METADATA",
     "KeyCraftsman",
     "KeyException",
+    "excluder_chart",
+    "generate_fernet_keys",
 )
