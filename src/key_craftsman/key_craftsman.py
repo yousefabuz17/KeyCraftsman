@@ -592,7 +592,7 @@ def generate_fernet_keys(
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.4"),
+    "version": (__version__ := "1.0.5"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
@@ -603,7 +603,7 @@ METADATA = {
     "doc": (__doc__ := KeyCraftsman.__doc__),
 }
 
-print(KeyCraftsman(sep="-d", key_header="KEY").keys)
+
 __all__ = (
     "METADATA",
     "KeyCraftsman",
