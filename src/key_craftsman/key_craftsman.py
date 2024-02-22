@@ -3,7 +3,6 @@ import json
 import math
 import logging
 import operator
-import pkg_resources
 import re
 import sys
 import textwrap
@@ -27,7 +26,6 @@ from string import (
     whitespace,
 )
 from typing import Any, Iterable, Iterator, Literal, NamedTuple, Union
-
 
 
 class FilterLog(logging.Filter):
@@ -106,7 +104,7 @@ class KeyException(BaseException):
         elif log_type == "warning":
             color = "33"  # Yellow
         else:
-            #** log_type in ("error", "critical")
+            # ** log_type in ("error", "critical")
             color = "31"  # Red
         return color
 
@@ -571,7 +569,7 @@ class KeyCraftsman(Iterable):
                 entropy = cls.calculate_entropy(set_key)
                 return (len(set(sample_key)), entropy)
             return sample_key
-        
+
         key_samples = set()
         for k in char_chart:
             if k in cls._UNIQUE_DISABLED:
@@ -579,7 +577,7 @@ class KeyCraftsman(Iterable):
             sample = _k_extract(e=k)[:16]
             unique_size = "{} ({:.2f})".format(*(_k_extract(e=k, u=True, setify=True)))
             key_samples.add((k, sample, unique_size))
-        
+
         for k in key_samples:
             table.add_row(k, divider=True)
 
@@ -1167,11 +1165,11 @@ class KeyCraftsman(Iterable):
         int_instance = lambda x: isinstance(x, int)
         len_text = len(text)
         invalid_width_str = "[INVALID WIDTH-INDEX]\n"
-        
+
         # Check if the width is an integer or an Iterable
         if self._width:
             self._obj_instance(self._width, obj_type=(int, Iterable))
-        
+
         if not self._width or int_instance(self._width):
             width = 4 if not self._width else self._width
 
@@ -1343,11 +1341,12 @@ class KeyCraftsman(Iterable):
     def _generate_words(self):
         self._length_checker(self._num_of_words)
         self._obj_instance(self._num_of_words, obj_type=int)
-        words_file_path = pkg_resources.resource_filename(__name__, "all_words.json")
-        with open(words_file_path) as words_file:
+        with open(Path(__file__).parent / "all_words.json") as words_file:
             # Load all hardcoded words from the json file.
             w_file = json.load(words_file)
-        total_words, all_words = (w_file.pop(k) for k in ("Total Unique-Words", "WORDS"))
+        total_words, all_words = (
+            w_file.pop(k) for k in ("Total Unique-Words", "WORDS")
+        )
 
         # Generate a random sample of words from the specified population.
         random_words = self._randomify(
@@ -1358,7 +1357,7 @@ class KeyCraftsman(Iterable):
             unique=self._unique_chars,
             break_point=self._num_of_words,
         )
-        
+
         if self._width:
             # If the 'width' parameter is specified, wrap the words based on the specified width.
             if not isinstance(self._width, int) or isinstance(self._width, Iterable):
@@ -1879,7 +1878,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.8"),
+    "version": (__version__ := "1.1.4"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
@@ -1893,13 +1892,13 @@ METADATA = {
 
 if __name__ == "__main__":
     # TODO:
-        # XXX KeyExpiry class
-        # Final New Key Structure >>> (Original Key + TTL Date)
-        # - Add expiry date to the key
-        # - Add method to check if the key is expired
-        # - Add method to extend the expiry date
-        # - Add method to renew the key
-        # - Add method to revoke the key
+    # XXX KeyExpiry class
+    # Final New Key Structure >>> (Original Key + TTL Date)
+    # - Add expiry date to the key
+    # - Add method to check if the key is expired
+    # - Add method to extend the expiry date
+    # - Add method to renew the key
+    # - Add method to revoke the key
     print(KeyCraftsman().__repr__())
 
 
