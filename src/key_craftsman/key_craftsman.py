@@ -27,6 +27,8 @@ from string import (
 )
 from typing import Any, Iterable, Iterator, Literal, NamedTuple, Union
 
+sys.path.append(Path(__file__).parents[2] / "src/key_craftsman")
+
 
 class FilterLog(logging.Filter):
     def __init__(self) -> None:
@@ -1876,7 +1878,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.6"),
+    "version": (__version__ := "1.0.7"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
