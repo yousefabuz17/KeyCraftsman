@@ -3,10 +3,11 @@ import json
 import math
 import logging
 import operator
-import uuid
+import pkg_resources
 import re
 import sys
 import textwrap
+import uuid
 from collections import Counter, namedtuple
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from functools import cache, cached_property, partial
@@ -27,7 +28,6 @@ from string import (
 )
 from typing import Any, Iterable, Iterator, Literal, NamedTuple, Union
 
-sys.path.append(Path(__file__).parents[2] / "src/key_craftsman")
 
 
 class FilterLog(logging.Filter):
@@ -1343,7 +1343,8 @@ class KeyCraftsman(Iterable):
     def _generate_words(self):
         self._length_checker(self._num_of_words)
         self._obj_instance(self._num_of_words, obj_type=int)
-        with open(Path(__file__).parent / "all_words.json") as words_file:
+        words_file_path = pkg_resources.resource_filename(__name__, "all_words.json")
+        with open(words_file_path) as words_file:
             # Load all hardcoded words from the json file.
             w_file = json.load(words_file)
         total_words, all_words = (w_file.pop(k) for k in ("Total Unique-Words", "WORDS"))
@@ -1878,7 +1879,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.0.7"),
+    "version": (__version__ := "1.0.8"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
