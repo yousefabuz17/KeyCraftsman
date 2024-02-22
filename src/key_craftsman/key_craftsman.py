@@ -13,7 +13,6 @@ from functools import cache, cached_property, partial
 from itertools import cycle, islice, tee
 from logging import Logger
 from pathlib import Path
-from prettytable import PrettyTable, SINGLE_BORDER
 from random import SystemRandom
 from string import (
     ascii_letters,
@@ -422,9 +421,7 @@ class KeyCraftsman(Iterable):
         )
 
     def __repr__(self) -> str:
-        """
-        Print and export the exclusion chart for help in excluding characters.
-        """
+        """Returns a sample of generated keys"""
         return "\n".join(KeyCraftsman(key_length=12, sep="-", num_of_keys=10))
 
     def __str__(self) -> str:
@@ -524,11 +521,36 @@ class KeyCraftsman(Iterable):
                     "Parameters ({!r}) are mutually exclusive.".format(", ".join(names))
                 )
             return result
+    
+    @staticmethod
+    def _pretty_table() -> tuple:
+        """
+        Check if the package 'prettytable' is installed and return the required objects.
+        """
+        try:
+            from prettytable import PrettyTable, SINGLE_BORDER # type: ignore
+        except ImportError:
+            # Disable the logger to forcefully print the error message to the console.
+            logger.disabled = False
+            KeyException(
+                "[MISSING PACKAGE]\n"
+                "Please be advised the package 'prettytable.PrettyTable' is currently not installed. "
+                "The package is not required for the main functionality of the class "
+                "but provides the exclusion chart for help in excluding characters "
+                "and checking the unique max key size and the entropy level for each exclusion type."
+                "\nTo install the package, for a more user-friendly experience, use the following command:"
+                "\n\n$ pip install prettytable\n"
+                "For more information,"
+                "\nplease visit the official documentation at: https://pypi.org/project/prettytable/",
+                log_method=logger.critical
+                )
+            return
+        return SINGLE_BORDER, PrettyTable
 
     @classmethod
     def print_echart(
         cls, fp: Union[Path, str] = None, return_table: bool = False, **kwargs
-    ) -> PrettyTable:
+    ) -> Any:
         """
         Print and export the exclusion chart for help in excluding characters.
 
@@ -543,11 +565,19 @@ class KeyCraftsman(Iterable):
             - `PrettyTable`: The exclusion chart as a `PrettyTable` object.
         """
 
-        table = PrettyTable(
+        char_chart = cls.char_excluder(return_chart=True)
+        pt = cls._pretty_table()
+        if not pt:
+            # If the package is not installed,
+            # return the exclusion chart as a dictionary.
+            return char_chart
+        else:
+            single_border, pretty_table = pt
+        
+        table = pretty_table(
             ["Key-Options", "Key-Samples", "Unique Max Key-Size (Entropy)"]
         )
-        table.set_style(SINGLE_BORDER)
-        char_chart = cls.char_excluder(return_chart=True)
+        table.set_style(single_border)
 
         def _k_extract(e, u=False, setify: bool = False):
             """
@@ -1899,7 +1929,7 @@ if __name__ == "__main__":
     # - Add method to extend the expiry date
     # - Add method to renew the key
     # - Add method to revoke the key
-    print(KeyCraftsman().__repr__())
+    print(repr(KeyCraftsman()))
 
 
 __all__ = (
