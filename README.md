@@ -1,8 +1,8 @@
 <img src="logo/key-craftsman-logo.jpg" alt="KeyCraftsman Logo" width=200>
 
 # KeyCraftsman
-[![PyPI version](https://badge.fury.io/py/dynamic-loader.svg)](https://badge.fury.io/py/key-craftsman)
-[![Downloads](https://pepy.tech/badge/dynamic-loader)](https://pepy.tech/project/key-craftsman)
+[![PyPI version](https://badge.fury.io/py/key-craftsman.svg)](https://badge.fury.io/py/key-craftsman)
+[![Downloads](https://static.pepy.tech/badge/key-craftsman)](https://pepy.tech/project/key-craftsman)
 [![License](https://img.shields.io/badge/license-Apache-blue.svg)](https://opensource.org/license/apache-2-0/)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://github.com/yousefabuz17/KeyCraftsman/blob/main/README.md)
 [![Code Style](https://img.shields.io/badge/code%20style-pep8-blue.svg)](https://www.python.org/dev/peps/pep-0008/)
@@ -213,6 +213,9 @@ for k in key_gen:
 print(key_gen)
 print(key_gen.print_echart(return_table=True))  # PrettyTable object of the Exclusions Chart.
 print(key_gen.print_echart(fp="exclusions_chart.txt"))  # Exclusions Chart exported to 'exclusions_chart.txt'.
+# Alternatively, the exclusion chart can be printed and exported using the `excluder_chart` function.
+e_chart = excluder_chart(return_table=True)  # PrettyTable object of the Exclusions Chart.
+excluder_chart(fp="exclusions_chart.txt")  # Exclusions Chart exported to 'exclusions_chart.txt'.
 
 # Custom text wrapping with a separator.
 key_gen = KeyCraftsman(key_length=32, sep=":", sep_width=4)
