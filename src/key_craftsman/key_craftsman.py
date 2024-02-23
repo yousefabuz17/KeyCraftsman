@@ -257,7 +257,6 @@ class KeyCraftsman(Iterable):
             - When the specified 'sep_width' value is not 1 less than the specified key length.
             - When `unique_chars` is enabled and the key length is larger than the length of the unique character set.
             - When `use_words` is enabled and the `num_of_words` parameter is not specified.
-            - When the
             - (V) When the specified separator contains prohibited whitespace characters (excluding single space).
             - (V) When special characters are detected in the text when wrapping.
             - (V) When `unique_chars` is enabled and the generated key is already unique.
@@ -566,50 +565,44 @@ class KeyCraftsman(Iterable):
         """
 
         char_chart = cls.char_excluder(return_chart=True)
+
+        def _k_extract(e: str="", setify: bool = False, s=None) -> Union[str, tuple[int, float]]:
+            """Extract a key sample for each exclusion type."""
+            if setify:
+                set_key = set(s)
+                entropy = cls.calculate_entropy(set_key)
+                return (len(set_key), entropy)
+            
+            # Large key length to ensure all characters are included.
+            sample_key = cls(key_length=500, exclude_chars=e)
+            return sample_key.key
+
+        key_samples = {}
+        for idx, k in enumerate(char_chart, start=1):
+            sample = _k_extract(e=k)
+            unique_size = "{} ({:.2f})".format(*(_k_extract(s=sample, setify=True)))
+            if k in cls._UNIQUE_DISABLED:
+                k += " (UD)"
+            key_samples[idx] = (k, sample[:16], unique_size)
+        
+        # XXX - Initiate and check if the package 'prettytable' is installed.
         pt = cls._pretty_table()
         if not pt:
             # If the package is not installed,
             # return the exclusion chart as a dictionary.
-            return char_chart
-        else:
-            single_border, pretty_table = pt
+            return key_samples
+        
+        # If the package is installed,
+        # return the exclusion chart as a `PrettyTable` object.
+        single_border, pretty_table = pt
         
         table = pretty_table(
             ["Key-Options", "Key-Samples", "Unique Max Key-Size (Entropy)"]
         )
         table.set_style(single_border)
-
-        def _k_extract(e, u=False, setify: bool = False):
-            """
-            Extract a key sample for each exclusion type.
-
-            #### NOTE::
-                - `e` (str): The exclusion type to extract a key sample.
-                - `u` (bool): Whether to extract a unique key sample.
-                - `setify` (bool): Whether to return the key sample as a set.
-            """
-            sample_key = cls(
-                key_length=cls._ALL_CHARS_LEN,
-                exclude_chars=e,
-                unique_chars=u,
-                bypass_unique_limit=True,
-            ).key
-            if setify:
-                set_key = set(sample_key)
-                entropy = cls.calculate_entropy(set_key)
-                return (len(set(sample_key)), entropy)
-            return sample_key
-
-        key_samples = set()
-        for k in char_chart:
-            if k in cls._UNIQUE_DISABLED:
-                k += " (UD)"
-            sample = _k_extract(e=k)[:16]
-            unique_size = "{} ({:.2f})".format(*(_k_extract(e=k, u=True, setify=True)))
-            key_samples.add((k, sample, unique_size))
-
-        for k in key_samples:
-            table.add_row(k, divider=True)
+        
+        for ks in key_samples.values():
+            table.add_row(ks, divider=True)
 
         table.add_autoindex("Index")
         table.align["Index"] = "c"
@@ -842,7 +835,7 @@ class KeyCraftsman(Iterable):
             "oct_ascii_punct": octdigits + ascii_letters + punctuation,
             "oct_ascii_lower_punct": octdigits + ascii_lowercase + punctuation,
             "oct_ascii_upper_punct": octdigits + ascii_uppercase + punctuation,
-            "rfc_4122": ascii_lowercase[:char_f] + ascii_lowercase + punctuation,
+            "rfc_4122": ascii_lowercase[:char_f] + ascii_uppercase + punctuation,
             "non_rfc_4122": ascii_lowercase[char_f:] + ascii_uppercase + punctuation,
         }
 
@@ -856,17 +849,16 @@ class KeyCraftsman(Iterable):
             return idx_chars
 
         # Check if the specified key is a valid exclusion key or index value.
-        # cls._obj_instance(key, obj_type=(int, str))
+        cls._obj_instance(key, obj_type=(int, str))
         if isinstance(key, str):
             # Check if the specified key contains whitespace characters.
             cls._whitespace_checker(key)
         elif isinstance(key, int):
             # Validate the specified index value.
-            # Index values are from 1-29.
-            if not 1 <= key <= len(all_chars):
+            if not 1 <= key <= (len_chars:=len(all_chars)):
                 raise KeyException(
                     "[INVALID EXCLUSION-INDEX]\n"
-                    "The specified index value is invalid; requires an integer value between 1 and 29."
+                    f"The specified index value is invalid; requires an integer value between 1 and {len_chars}."
                 )
 
         # Check if the specified key is a valid exclusion option or index value.
@@ -1499,6 +1491,7 @@ class KeyCraftsman(Iterable):
                 if all((self._bypass_unique, too_large)) and any(
                     (
                         self._exclude_chars in self._UNIQUE_DISABLED,
+                        len(generated_key)==key_length,
                         len(generated_key) in self._UNIQUE_DISABLED.values(),
                     )
                 ):
@@ -1535,7 +1528,7 @@ class KeyCraftsman(Iterable):
                             gen_set = set(all_chars) & set(filtered_chars)
                             generated_key = self._randomify(
                                 population=tuple(gen_set),
-                                k=min(len(gen_set), len(all_chars)),
+                                k=min(key_length, len(all_chars)),
                             )
                         else:
                             raise KeyException(
@@ -1908,7 +1901,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.1.51"),
+    "version": (__version__ := "1.1.6"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
