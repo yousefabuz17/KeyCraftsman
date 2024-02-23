@@ -14,7 +14,6 @@
 
 ## Table of Contents
 - [Installation](#installation)
-- [Usage](#usage)
 - [Features](#features)
 - [Parameters](#parameters)
 - [Attributes](#attributes)
