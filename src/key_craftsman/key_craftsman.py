@@ -1639,7 +1639,7 @@ class KeyCraftsman(Iterable):
         if isinstance(fp_name, str):
             fp_name = Path(fp_name).stem
         ext = "." + ext
-        file = (Path(__file__).absolute().parent / fp_name).with_suffix(ext)
+        file = (Path.cwd() / fp_name).with_suffix(ext)
         file_found = self.file_exists(file)
         if not self._overwrite and file_found:
             # Default file name: 'generated_key_ID<int>.<bin/json>'
@@ -1901,7 +1901,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.2.0"),
+    "version": (__version__ := "1.2.1"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
