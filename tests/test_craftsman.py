@@ -1,9 +1,5 @@
 import pytest
-import sys
-from pathlib import Path
-
-sys.path.append((Path(__file__).resolve().parents[1] / "src/key_craftsman").as_posix())
-from key_craftsman import (
+from ..src.key_craftsman import (
     excluder_chart,
     generate_secure_keys,
     KeyCraftsman,
@@ -11,7 +7,9 @@ from key_craftsman import (
     _get_method,
 )
 
+
 MAX_C = KeyCraftsman._MAX_CAPACITY
+ALL_CHARS = KeyCraftsman._ALL_CHARS
 unpack = KeyCraftsman.unpack
 validate_ktuple = KeyCraftsman._validate_ktuple
 
@@ -31,6 +29,7 @@ def kc(**kwargs):
             {"num_of_keys": MAX_C},
             {"num_of_words": MAX_C, "use_words": True},
             {"sep": "large-sep"},
+            {"exclude_chars": ALL_CHARS},
         )
     ],
 )

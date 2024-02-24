@@ -114,33 +114,34 @@ class KeyException(BaseException):
 
 class KeyCraftsman(Iterable):
     """
-    `KeyCraftsman` is a modernized Python class designed to generate secure and customizable keys.
-    It offers features such as specifying key length, excluding characters, including all characters,
-    URL-safe encoding, and more. The generated key can be exported to a file for future use.
+    `KeyCraftsman` is a modernized and innovative Python class designed to generate passcodes to your own liking.
+    It offers features such as specifying key length, excluding characters, including all characters, URL-safe encoding, and more.
+    The generated passkey(s) can be exported to a file for future use.
 
     #### Features:
-        - `Key Generation`: Generate secure and customizable keys with various parameters.
-        - `Key Length`: Specify the length of the generated keys.
-        - `Exclude Characters`: Exclude specific characters from the generated keys.
-        - `Include All Characters`: Include all ASCII letters, digits, and punctuation in the generated keys.
-        - `Unique Characters`: Ensure that the generated key(s) or word(s) contain unique characters.
-        - `URL-Safe Encoding`: Utilize URL-safe base64 encoding for generated keys.
-        - `Export Key(s)`: Export the generated key(s) to a file with optional formatting.
-            - File will be created in the current working directory based on the `keyfile_name` provided.
-        - `Custom Text Wrapping`: Wrap the generated key with a custom separator.
-        - `Multiple Key Generation`: Generate multiple keys with a single instance.
-        - `Word Generation`: Generate words using the `random.SystemRandom()` method.
-        - `Verbose Mode`: Enable or disable verbose mode for logging and printing exceptions.
-        - `Custom Key File Name`: Specify a custom name for the exported key file.
-        - `Overwrite Key File`: Overwrite the key file if it already exists.
+        - **Passkey Generation**: Generate secure and customizable keys with various parameters.
+        - **Passkey Length**: Specify the length of the generated keys.
+        - **Exclude Characters**: Exclude specific characters from the generated keys.
+        - **Include All Characters**: Include all ASCII letters, digits, and punctuation in the generated keys.
+        - **Unique Characters**: Ensure that the generated key(s) or word(s) contain unique characters.
+        - **URL-Safe Encoding**: Utilize URL-safe base64 encoding for generated keys.
+        - **Export Passkey(s)**: Export the generated key(s) to a file with optional formatting.
+        - **Custom Text Wrapping**: Wrap the generated key with a custom separator and width.
+        - **Multiple Passkey Generation**: Generate multiple keys with a single instance.
+        - **Word Generation**: Generate words using the `random.SystemRandom()` method.
+        - **Verbose Mode**: Enable or disable verbose mode for logging and printing exceptions.
+        - **Custom Passkey File Name**: Specify a custom name for the exported key file.
+        - **Overwrite Passkey File**: Overwrite the key file if it already exists.
+        - **Exclusion Chart**: Print and export the exclusion chart for help in excluding characters.
+        - **RFC 4122 Compliant UUID**: Generate an RFC 4122 compliant UUID using the `kc_uuid` function.
 
     #### Parameters:
-        - `key_length` (int): The length of the generated key. Defaults to 32.
+        - `key_length` (int): The length of the generated key. Defaults to 16.
             - The key length must be a positive integer.
             - The maximum capacity is determined by the system's maximum integer size.
         - `exclude_chars` (Union[int, str]): Characters to exclude from the generated key.
             - If not specified, only punctuation characters will be excluded.
-            - Please refer to the `char_excluder()` method for all possible exclude types.
+            - Please refer to the `Exclusions Chart` from the documentation for reference.
             - Whitespace characters are automatically excluded from the charset.
             - The input can be a string key type or index value from the exclusion chart.
             - `Examples`:
@@ -155,7 +156,6 @@ class KeyCraftsman(Iterable):
             - If the key length is larger than the length of the unique character set, an exception will be raised.
             - If the generated key is already unique, a warning message will be printed in verbose mode.
             - If the unique character limit is bypassed, a warning message will be printed in verbose mode.
-            - I
         - `bypass_unique_limit` (bool): Whether to bypass the unique character limit.
         - `encoded` (bool): Whether to encode the the generated key(s).
         - `urlsafe-encoded` (bool): Whether to use URL-safe base64 encoding. Defaults to False.
@@ -257,6 +257,7 @@ class KeyCraftsman(Iterable):
             - When the specified 'sep_width' value is not 1 less than the specified key length.
             - When `unique_chars` is enabled and the key length is larger than the length of the unique character set.
             - When `use_words` is enabled and the `num_of_words` parameter is not specified.
+            - When trying to exclude all string characters (ASCII letters + digits + punctuation)
             - (V) When the specified separator contains prohibited whitespace characters (excluding single space).
             - (V) When special characters are detected in the text when wrapping.
             - (V) When `unique_chars` is enabled and the generated key is already unique.
@@ -367,7 +368,7 @@ class KeyCraftsman(Iterable):
         num_of_keys: int = None,
         num_of_words: int = None,
         sep: str = "",
-        sep_width: Union[int, Iterable] = None,
+        sep_width: Union[int, Iterable[int]] = None,
         keyfile_name: str = "",
         use_words: bool = False,
         overwrite_keyfile: bool = False,
@@ -400,7 +401,7 @@ class KeyCraftsman(Iterable):
         # '__class_keys' is a quick way to retrieve the generated key(s)
         # based on the 'num_of_keys' or 'num_of_words' parameter.
         # Instead of using the 'key' or 'keys' property, '__class_keys' can be used to retrieve the key(s).
-        self.__class_keys: Union[bytes, str, tuple[str]] = lambda: self.unpack(
+        self.__class_keys: Union[bytes, str, tuple[bytes], tuple[str]] = lambda: self.unpack(
             _get_method(
                 self, attr="key", status=any((self._num_of_keys, self._num_of_words))
             )
@@ -451,7 +452,6 @@ class KeyCraftsman(Iterable):
             self.__index += 1
             return next_key
         except IndexError:
-            self.__index = 0
             raise StopIteration(
                 "[STOP-ITERATION]\n"
                 "All keys have been iterated. "
@@ -471,6 +471,11 @@ class KeyCraftsman(Iterable):
             - The index value is reset to 0 after all key(s) have been iterated.
         """
         return self.__index
+    
+    @cached_property
+    def max_index(self):
+        chart = self.char_excluder(return_chart=True)
+        return Counter(chart.items()).total()
 
     @classmethod
     def _validate_ktuple(cls, ktuple: NamedTuple) -> Union[NamedTuple, bool]:
@@ -520,14 +525,14 @@ class KeyCraftsman(Iterable):
                     "Parameters ({!r}) are mutually exclusive.".format(", ".join(names))
                 )
             return result
-    
+
     @staticmethod
     def _pretty_table() -> tuple:
         """
         Check if the package 'prettytable' is installed and return the required objects.
         """
         try:
-            from prettytable import PrettyTable, SINGLE_BORDER # type: ignore
+            from prettytable import PrettyTable, SINGLE_BORDER  # type: ignore
         except ImportError:
             # Disable the logger to forcefully print the error message to the console.
             logger.disabled = False
@@ -541,8 +546,8 @@ class KeyCraftsman(Iterable):
                 "\n\n$ pip install prettytable\n"
                 "For more information,"
                 "\nplease visit the official documentation at: https://pypi.org/project/prettytable/",
-                log_method=logger.critical
-                )
+                log_method=logger.error,
+            )
             return
         return SINGLE_BORDER, PrettyTable
 
@@ -566,13 +571,15 @@ class KeyCraftsman(Iterable):
 
         char_chart = cls.char_excluder(return_chart=True)
 
-        def _k_extract(e: str="", setify: bool = False, s=None) -> Union[str, tuple[int, float]]:
+        def _k_extract(
+            e: str = "", setify: bool = False, s=None
+        ) -> Union[str, tuple[int, float]]:
             """Extract a key sample for each exclusion type."""
             if setify:
                 set_key = set(s)
                 entropy = cls.calculate_entropy(set_key)
                 return (len(set_key), entropy)
-            
+
             # Large key length to ensure all characters are included.
             sample_key = cls(key_length=500, exclude_chars=e)
             return sample_key.key
@@ -583,24 +590,27 @@ class KeyCraftsman(Iterable):
             unique_size = "{} ({:.2f})".format(*(_k_extract(s=sample, setify=True)))
             if k in cls._UNIQUE_DISABLED:
                 k += " (UD)"
+            # XXX - Store the key samples and the unique size for each exclusion type.
+            # The unique size is the length of the unique characters and the entropy level.
+            # The sample passkey is sliced to 16 characters for display purposes.
             key_samples[idx] = (k, sample[:16], unique_size)
-        
+
         # XXX - Initiate and check if the package 'prettytable' is installed.
         pt = cls._pretty_table()
         if not pt:
             # If the package is not installed,
             # return the exclusion chart as a dictionary.
             return key_samples
-        
+
         # If the package is installed,
         # return the exclusion chart as a `PrettyTable` object.
         single_border, pretty_table = pt
-        
+
         table = pretty_table(
             ["Key-Options", "Key-Samples", "Unique Max Key-Size (Entropy)"]
         )
         table.set_style(single_border)
-        
+
         for ks in key_samples.values():
             table.add_row(ks, divider=True)
 
@@ -618,6 +628,8 @@ class KeyCraftsman(Iterable):
             fp = open(fp, mode="w")
 
         print(table.get_string(title=t, **kwargs), file=fp)
+        if fp:
+            cls._export_message(fp=fp)
         sys.exit()
 
     @staticmethod
@@ -662,7 +674,7 @@ class KeyCraftsman(Iterable):
         except Exception as e_error:
             bt = base_type[:-1] + "ing"  # Encoding or Decoding
             raise KeyException(
-                "[INVALID BASE64 CODING]\n"
+                "[INVALID BASE64-CODING]\n"
                 f"An error occurred during base64 {bt}:"
                 f"\n{e_error}"
             )
@@ -704,7 +716,7 @@ class KeyCraftsman(Iterable):
                 # Excluding all characters (ascii_letters + digits + punctuation) is prohibited.
                 raise KeyException(
                     "[INVALID EXCLUSION-TYPE]\n"
-                    f"Excluding all characters is prohibited. "
+                    "Excluding all characters is prohibited. "
                     "Please specify a valid exclusion type or index value."
                     "\nFor help, use the `print_echart()` method or `excluder_chart` function "
                     "to view the exclusion chart for reference."
@@ -850,12 +862,13 @@ class KeyCraftsman(Iterable):
 
         # Check if the specified key is a valid exclusion key or index value.
         cls._obj_instance(key, obj_type=(int, str))
+        len_chars = len(all_chars)
         if isinstance(key, str):
             # Check if the specified key contains whitespace characters.
             cls._whitespace_checker(key)
         elif isinstance(key, int):
             # Validate the specified index value.
-            if not 1 <= key <= (len_chars:=len(all_chars)):
+            if not 1 <= key <= len_chars:
                 raise KeyException(
                     "[INVALID EXCLUSION-INDEX]\n"
                     f"The specified index value is invalid; requires an integer value between 1 and {len_chars}."
@@ -1491,7 +1504,6 @@ class KeyCraftsman(Iterable):
                 if all((self._bypass_unique, too_large)) and any(
                     (
                         self._exclude_chars in self._UNIQUE_DISABLED,
-                        len(generated_key)==key_length,
                         len(generated_key) in self._UNIQUE_DISABLED.values(),
                     )
                 ):
@@ -1656,7 +1668,8 @@ class KeyCraftsman(Iterable):
                 )
         return file
 
-    def _export_message(self, fp: Path) -> None:
+    @staticmethod
+    def _export_message(fp: Path) -> None:
         KeyException(
             f"\033[34m{fp.resolve().as_posix()!r}\033[0m has successfully been exported.",
             log_method=logger.info,
@@ -1755,11 +1768,11 @@ def excluder_chart(
         - The character sets are based on the ASCII letters, digits, and punctuation characters.
         - Whitespace characters ((space)\\t\\n\\r\\v\\f) are automatically excluded from the charset.
     """
-    if format_type == "dict":
+    if format_type == "dict" or include_index:
         return KeyCraftsman.char_excluder(
-            return_chart=True, include_index=include_index
+            return_chart=not include_index, include_index=include_index
         )
-    KeyCraftsman.print_echart(**kwargs)
+    return KeyCraftsman.print_echart(**kwargs)
 
 
 def generate_secure_keys(
@@ -1901,7 +1914,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.2.1"),
+    "version": (__version__ := "1.2.11"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
@@ -1914,14 +1927,6 @@ METADATA = {
 
 
 if __name__ == "__main__":
-    # TODO:
-    # XXX KeyExpiry class
-    # Final New Key Structure >>> (Original Key + TTL Date)
-    # - Add expiry date to the key
-    # - Add method to check if the key is expired
-    # - Add method to extend the expiry date
-    # - Add method to renew the key
-    # - Add method to revoke the key
     print(repr(KeyCraftsman()))
 
 
