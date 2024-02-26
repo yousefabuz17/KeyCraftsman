@@ -353,7 +353,6 @@ class KeyCraftsman(Iterable):
     _ALL_CHARS_LEN: int = len(_ALL_CHARS)
     _MIN_CAPACITY: int = int(1e5)
     _MAX_CAPACITY: int = sys.maxsize
-    _UNIQUE_DISABLED: dict[str, int] = {"ascii_punct": 10, "oct_ascii_punct": 2}
     _EXECUTOR = ThreadPoolExecutor
 
     def __init__(
@@ -401,7 +400,9 @@ class KeyCraftsman(Iterable):
         # '__class_keys' is a quick way to retrieve the generated key(s)
         # based on the 'num_of_keys' or 'num_of_words' parameter.
         # Instead of using the 'key' or 'keys' property, '__class_keys' can be used to retrieve the key(s).
-        self.__class_keys: Union[bytes, str, tuple[bytes], tuple[str]] = lambda: self.unpack(
+        self.__class_keys: Union[
+            bytes, str, tuple[bytes], tuple[str]
+        ] = lambda: self.unpack(
             _get_method(
                 self, attr="key", status=any((self._num_of_keys, self._num_of_words))
             )
@@ -471,7 +472,7 @@ class KeyCraftsman(Iterable):
             - The index value is reset to 0 after all key(s) have been iterated.
         """
         return self.__index
-    
+
     @cached_property
     def max_index(self):
         chart = self.char_excluder(return_chart=True)
@@ -588,8 +589,6 @@ class KeyCraftsman(Iterable):
         for idx, k in enumerate(char_chart, start=1):
             sample = _k_extract(e=k)
             unique_size = "{} ({:.2f})".format(*(_k_extract(s=sample, setify=True)))
-            if k in cls._UNIQUE_DISABLED:
-                k += " (UD)"
             # XXX - Store the key samples and the unique size for each exclusion type.
             # The unique size is the length of the unique characters and the entropy level.
             # The sample passkey is sliced to 16 characters for display purposes.
@@ -616,7 +615,7 @@ class KeyCraftsman(Iterable):
 
         table.add_autoindex("Index")
         table.align["Index"] = "c"
-        t = kwargs.pop("title", "Exclusions Chart (UD = Unique Disabled)")
+        t = kwargs.pop("title", "Exclusions Chart")
         if return_table:
             table.title = t
             return table
@@ -1501,23 +1500,11 @@ class KeyCraftsman(Iterable):
                     log_method=logger.warning,
                 )
 
-                if all((self._bypass_unique, too_large)) and any(
-                    (
-                        self._exclude_chars in self._UNIQUE_DISABLED,
-                        len(generated_key) in self._UNIQUE_DISABLED.values(),
-                    )
-                ):
-                    # XXX Unique Chars Disabled
-                    # This overrides the limited fixed lengths
-                    # for ('oct_ascii_punct', 'ascii_punct') after set filtering.
-                    KeyException(
-                        "[UNIQUE-CHARS DISABLED]\n"
-                        "Please be advised that the 'unique_chars' parameter has been disabled. "
-                        "Using ('oct_ascii_punct' (size=2), 'ascii_punct' (size=10)) exclusion options may result in unsecure key lengths "
-                        "when the 'unique_chars' parameter is enabled.",
-                        log_method=logger.warning,
-                    )
-                    self._unique_chars = False
+                if all((self._bypass_unique, too_large)):
+                    # If the 'bypass_unique' parameter is enabled
+                    # and the key length is greater than the length of the filtered set of characters,
+                    # force the key length to be equal to the length of the filtered set of characters.
+                    key_length = unique_chars_len
                 else:
                     invalid_klen_str = "[KEY-LENGTH VALIDATION]\n"
                     if not self._bypass_unique:
@@ -1871,12 +1858,13 @@ def simple_pwd(
     return method(attr="key")
 
 
-def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
+def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None, uuid_obj: bool = True) -> uuid.UUID:
     """
     Generate a UUID using the `KeyCraftsman` class.
 
     #### Parameters:
         - `version` (Literal[1, 2, 3, 4, 5], optional): The version number for the UUID.
+        - `uuid_obj` (bool, optional): If True, the function will return the generated UUID as a UUID object. Defaults to True.
 
     #### Returns:
         - `UUID`: A universally unique identifier (UUID) generated using the `KeyCraftsman` class.
@@ -1899,6 +1887,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
     kc = KeyCraftsman(
         key_length=32, sep="-", sep_width=(8, 12, 16, 20), exclude_chars="non_rfc_4122"
     )
+    uuid_key = kc.key
 
     if version:
         KeyCraftsman._obj_instance(version, obj_type=int)
@@ -1909,12 +1898,14 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None) -> uuid.UUID:
                 f"\n>>> {version_defaults = }"
                 f"\n>>> Received -> {version = }"
             )
-    return uuid.UUID(kc.key, version=version)
+    if not uuid_obj:
+        return uuid_key
+    return uuid.UUID(uuid_key, version=version)
 
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.2.11"),
+    "version": (__version__ := "1.2.12"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
