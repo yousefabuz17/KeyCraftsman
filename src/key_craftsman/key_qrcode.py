@@ -88,7 +88,7 @@ class KeyQRCode:
             level = ERROR_CORRECT_H
         return level
     
-    def generate_qr(self, show_qr: False, clipboard: bool=True, save_qr: bool=False) -> None:
+    def generate_qr(self, show_qr: bool=True, clipboard: bool=True, save_qr: bool=False) -> None:
         """
         Generate the QR code and save it as an image file with the key copied to clipboard.
         
