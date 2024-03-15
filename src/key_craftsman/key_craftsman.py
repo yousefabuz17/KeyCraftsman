@@ -41,7 +41,7 @@ class FilterLog(logging.Filter):
 
 
 logger: Logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 formatter = logging.Formatter(
     **{
         "fmt": "[%(asctime)s][%(levelname)s]:%(message)s",
@@ -974,7 +974,7 @@ class KeyCraftsman(Iterable):
         cls._obj_instance(seperator, obj_type=str)
 
         def test_key(k):
-            return len(set(k)) == len(k)
+            return all(i == 1 for i in Counter(k).values())
 
         if test_only:
             # Skips the filteration and decoding process.
@@ -1905,7 +1905,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None, uuid_obj: bool = True) -> uu
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.2.12"),
+    "version": (__version__ := "1.2.13"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
