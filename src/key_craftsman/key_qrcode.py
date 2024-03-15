@@ -51,9 +51,10 @@ class KeyQRCode:
         if file_name and isinstance(file_name, (Path, str)):
             fp =  Path(file_name).stem
         else:
-            fp = Path("QRCODE_" + self._unique_id())
+            fp = "QRCODE_" + self._unique_id()
         
         def isfile(f):
+            f = Path(f)
             if f.is_file():
                 f = f.as_posix().stem + f"_{self._unique_id()}"
             return f

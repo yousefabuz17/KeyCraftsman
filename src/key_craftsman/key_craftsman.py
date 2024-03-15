@@ -1905,7 +1905,7 @@ def kc_uuid(version: Literal[1, 2, 3, 4, 5] = None, uuid_obj: bool = True) -> uu
 
 # XXX Metadata Information
 METADATA = {
-    "version": (__version__ := "1.2.14"),
+    "version": (__version__ := "1.2.15"),
     "license": (__license__ := "Apache License, Version 2.0"),
     "url": (__url__ := "https://github.com/yousefabuz17/KeyCraftsman"),
     "author": (__author__ := "Yousef Abuzahrieh <yousef.zahrieh17@gmail.com"),
